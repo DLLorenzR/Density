@@ -1,0 +1,42 @@
+#' Extend Range
+#' 
+#' Computes a range extension for density estimation. Used primarily to construct
+#'consistent ranges to compare different density estimation ranges. Also useful
+#'to extend the range for selected methods that generally produce ranges that
+#'do not cover a sufficient range to describe the distribution.
+#'
+#' @param x the data for which a density estimate is needed.
+#' @param extend the distance to extend the range of \code{x}. See \bold{Details}.
+#' 
+#' @details The value of \code{extend} controls the extension of the range. The 
+#'default value, 0, computes an extension that generally works very well for 
+#'kernel density methods using the Gaussian kernel and most other methods. Any
+#'positive value extends the range by the amount specified. For example, a value 
+#'of 0.1 extends the range by 10 percent, which is the default for the \code{bins1}
+#'function in the ash package. Extension by a proportion can also be useful for
+#'kernels other than the Gaussian that have limited ranges.
+#'
+#' @note The function \code{ash1} frequently provides estimates generating the
+#'"ash estimate nonzero outside interval ab" message. The function \code{fromTo}
+#'can be used to extend the range to avoid this message and potential bias in the 
+#'estimate. For relatively small samples sizes, the number of bins should be 
+#'increased by a factor of the ratio of the extension divided by 1.1 times the 
+#'ratio of m to 5---increasing produces a smoother curve, especially important 
+#'for small samples.
+#'
+#' @return A named vector of length 2 giving the minimum (from) and maximum (to)
+#'values of the range.
+#' 
+#' @export
+fromTo <- function(x, extend=0) {
+  if(extend == 0) {
+    xmn <- mean(x)
+    retval <- c(from=1.5*min(x) - 0.5*xmn,
+                to=1.5*max(x) - 0.5*xmn)
+  } else {
+    xrng <- range(x)
+    xoff <- diff(xrng) * extend/2
+    retval <- c(from=xrng[1L] - xoff, to=xrng[2L] + xoff)
+  }
+  return(retval)
+}

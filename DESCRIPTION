@@ -1,0 +1,34 @@
+Package: Density
+Version: 0.1.6
+Date: 2023-04-17
+Title: Density functions 
+Authors@R: person("Dave", "Lorenz", email = "lorenz.dave.r@gmail.com", role = "cre")
+Encoding: UTF-8
+Depends:
+    R (>= 3.5.0),
+Imports:
+    stats,
+    utils,
+    mgcv,
+    survival,
+    gss,
+    logspline,
+    np,
+    pendensity,
+    ash,
+    locfit,
+    gnorm
+Suggests:
+    KernSmooth,
+    ks,
+    plugdensity,
+    sm,
+    knitr
+Description: This package has three functions for computing density estimates
+    of univariate data. It also provides methods for other density functions to provide
+    a consistent environment for evaluating those methods.
+License: CC0
+LazyLoad: yes
+LazyData: yes
+VignetteBuilder: knitr
+RoxygenNote: 7.2.2

@@ -1,0 +1,375 @@
+---
+title: "Density Overview"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author: Dave Lorenz
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    number_sections: false
+    css: "dl.css"
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{Density Overview}
+  \usepackage[utf8]{inputenc}
+bibliography: refs.bib 
+---
+
+```{r setup, include=FALSE, message=FALSE}
+library(knitr)
+library(Density)
+options(continue = " ")
+options(width = 80)
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.height = 4,
+  fig.width = 4
+)
+```
+
+# Introduction
+
+The Density package provides four functions for one-dimensional density estimation: `dsDensity`, which performs a double-smoothing kernel estimate; `qqDensity`, which constructs a density estimate by forming a monotonic spline fit to the relation between the data and the quantiles of a selected distribution; `mixDensity`, which computes the density from a user-defined mixture of Gaussian distributions; and `logDensity`, which uses any of several methods (from various packages) to construct a density estimate for highly positively-skewed data. The package also contains `print` and `plot` functions for the output from those density estimation functions.
+
+The package includes a conversion function `as.Density` that will convert selected output from any of several density estimation functions from other packages to provide a way to consistently compare the estimates from those different methods. Also included is a function that compares the goodness-of-fit among any number of methods (`gofScores`). The motivation for `gofScores` is to help find a compromise between the bias in the fit and the variance of the fit.
+
+Finally, functions to compute or extract the density, `dDensity`; quantile, `qDensity`; and probability, `pDensity` from any object of class "Density" are included.
+
+The data values can be either a simple numeric vector or a `Surv` object for data that are either left- or right-censored for `dsDensity` or `qqDensity`. For logDensity, the `Surv` object must be strictly left-censored. For censored data, the EM method is used to estimate values that match the computed density and then the density is recomputed. Because a "Gaussian" kernel is used, the estimated values typically look approximately normally distributed for `dsDensity` and `mixDensity`. The function `qqDensity` uses one of several distribution functions defined by the data, so that the shape of the density estimate is more consistent with the shape of the data.
+
+## The dsDensity Function
+
+@ChungLindsay introduced a bias corrected density estimate that has an improved asymptotic bias over traditional kernel density estimates. Their method is often referred to as a double smoothing estimate and is incorporated into the `dsDensity` function. It has three arguments: `x` is the variable for which density estimates are to be made, `h` is the bandwidth, and `n` is the number of output points in the density estimate. The following code illustrates the function and prints and plots the result.
+
+```{r dsDensity, echo=TRUE, eval=TRUE, fig.cap="The density plot from dsDensity."}
+library(Density)
+DenSamp.dsD <- dsDensity(DenSamp)
+DenSamp.dsD
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.dsD)
+```
+
+The printed output reports the general method used, the call, any tuning parameters specified or automatically computed, some simple summary statistics of the data and computed for the density, and some goodness-of-fit metrics. There should be general agreement between the sample data and the computed data reported in the summary statistics. The normalized Za score is derived from @Zhang2002, normalized so that 0 indicates a perfect fit. See the Comparing the Density Estimates Section for more information. The log lik is the log likelihood with the computed degrees of freedom if possible. The variance ratio is the ratio of the computed variance from the density estimate to that of the raw data. The variability of the density estimate is a measure of the relative variability of the density estimate---values substantially greater than 1 can indicate overfitting and values substantially smaller than 1 can indicate serious underfitting. See the Comparing the Density Estimates Section for more details.
+
+The plot shows the density curve and the data values as short line segments below the 0 line. Including these data can help the user assess the fit.
+
+## The qqDensity Function
+
+The `qqDensity` function is a proposed function that creates a monotonic cubic spline fit between the the quantiles of the data (The sorted data) and the quantiles of a selected distribution function representing the sorted probabilities associated with each value of the data. The result is the cumulative distribution, which is converted to density estimates by simple differencing. The arguments to `qqDensity` are `alpha`, the offset fraction to compute the plotting points; `k`, the number of the cubic spline variables in the basis; `n`, the number of output points in the density estimate; and `plot.fit`, which indicates whether the plot f the fit is shown or not. The default method also accepts and additional argument, `shape` that selects the distribution. Again, `x` can be either a numeric vector or a `Surv` object. The code below illustrates it use and the output.
+
+```{r qqDensity, echo=TRUE, eval=TRUE, fig.dim=c(4,8), fig.cap="The density plot from qqDensity."}
+library(Density)
+# The qqDensity function by default creates a plot of the fit.
+# Set up the graphics environment
+layout(matrix(1:2, ncol=1))
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+DenSamp.qqD <- qqDensity(DenSamp)
+DenSamp.qqD
+plot(DenSamp.qqD)
+```
+
+In this case, the density plot shows a smoother density fit than for `dsDensity` on the left-hand side. It is generally true that this method is less sensitive to more extreme values and clumps of data near the limits than other methods. But it can be more sensitive to clumps of data near the middle.  
+
+## The mixDensity Function
+
+The `mixDensity` function defines the density as a mixture of Gaussian distributions. The default number is two, but any number can be used, including one, depending on the apparent number of peaks in the data. 
+
+```{r mixDensity, echo=TRUE, eval=TRUE, fig.cap="The density plot from mixDensity."}
+library(Density)
+# Set up the graphics environment
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+DenSamp.mixD <- mixDensity(DenSamp)
+DenSamp.mixD
+plot(DenSamp.mixD)
+```
+
+In this case, the density plot shows a spike in the data near -2.6, which is probably not real because it represents a relatively small percentage of the data. That spike is reflected in the large value for the variability of the density estimate. In other cases, `mixDensity` can fail to identify `Nmix` Gaussian distributions, in this case a warning is issued and the density estimates are `NA`. These quirks are relatively uncommon. In this example, it does reflect the bulge noted in the plot from `dsDensity`.
+
+
+## The logDensity Function
+
+The `logDensity` function is designed for very right-skewed data that have typically a minimum value of 0. It is designed to accept any function that computes a density estimate. The arguments to `logDensity` are `x`, the data; `method` the name of the method to use for the density estimate; `n`, the number of output points in the density estimate; and `...` which would be any additional arguments needed for `method`. Zero values in `x` are removed from the analysis and the density distribution is adjusted for their presence. The following code illustrates its use and uses the `density` function in the stats package as an example. The DenSamp data are converted to strictly positive data in this example.
+
+```{r logDensity, echo=TRUE, eval=TRUE, fig.cap="The density plot from logDensity."}
+library(Density)
+ExpSamp <- exp((DenSamp + 3)/3)
+ExpSamp.logD <- logDensity(ExpSamp, density, bw="nrd")
+ExpSamp.logD
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(ExpSamp.logD)
+```
+
+The report shows the log-transformed statistics rather than the statistics of the raw data. The plot is about what is expected, but the gap in data near 1.5 is highlighted by a dip in the density.
+
+## Comparing the Density Estimates
+
+The `gofScores` function can be used to compare the agreement between the data and the density estimate as well as provide an estimate of the smoothness of the density estimate. One of the measures of agreement between the density fit and the data is measured by a modified Anderson-Darling statistic described by @Zhang2002. The values are normalized so that a value of 0 indicates a perfect fit. Very small values could indicate overfitting the data. The other measure of the goodness of fit is the log likelihood and where possible the degrees of freedom are included in the computation---for some methods that value is returned in the method's output object and for kernel density it is computed using the method described by @McCloudParmeter. The log likelihood and Za scores track very well together, negatively, for kernel density estimation, but log likelihood places a bit more emphasis on the lower probability values (the extremes of a unimodal distribution). The smoothness of the density fit is simply the square-root of sum of 100 squared differences of the density estimate within the range of the observed data, divided by the peak density and scaled so that a perfectly normal distribution gives a value of 1. Finally, the ratio between to computed variance of the fit and the sample data are provided. The following code reports the values for the first three examples.
+
+```{r gofScores, echo=TRUE, eval=TRUE}
+gofScores(DenSamp, DenSamp.dsD, DenSamp.qqD, DenSamp.mixD)
+```
+
+In this case, the Za scores are very similar, but the relative variability of density estimate from `mixDensity` is much larger than other estimates, reflecting the secondary peak noted in the graph. The following plot compares the other density estimates on the same plot. The choice of the density estimation depends on the confidence of the user in understanding the lower end of the distribution. These are arbitrary data about which nothing is known.
+
+```{r Plot1, echo=TRUE, eval=TRUE, fig.cap="The density plot comparison"}
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.dsD)
+lines(DenSamp.qqD, col="red")
+```
+
+# Other Supported Packages
+
+@DengWickham published a short evaluation of density estimation packages. Some of the packages had only histograms and are not included in this section. Others have been removed from CRAN and are no longer available. This section provides a brief overview of the following packages. All of the examples generate density estimates of length 301, which is the default for Density Package functions. And they use as.Density to convert the output to class "Density." They also accept default tuning parameters, which the user has control of to modify the fit. In some cases, comments are made about modifications that might improve the fit. 
+
+The reports are not printed in this section. In general, they are similar to the previous reports, but the call and method vary by the output object.
+
+* ash is a shifted histogram density approach that has functions for one and two dimensional data.
+* gss has smoothing spline estimators, `ssden` is the general probability density estimator.
+* KernSmooth supports kernel smoothing and density estimation, `bkde` computes a binned kernel density estimate.
+* ks supports kernel density estimation, `kde` computes density estimates up to six dimensions.
+* locfit does local regression, likelihood, and density estimation, `density.lf` is the local kernel density estimator.
+* logspline supports smoothing spline estimation, `logspline` is also the name of the density estimation function.
+* np has kernel density estimators for mixed data types, the function `npudens` does unconditional density estimation.
+* pendensity does penalized spline density estimator, the main function is `pendensity`.
+* plugdensity does kernel density estimation using the function `plugin.density`.
+* sm supports smoothing methods for nonparametric regression and density estimation, `sm.density` does kernel density estimation for up to three dimensions.
+* stat, supplied in the stats package in the base distribution, has a kernel density estimator, called `density`.
+
+## The ash Package
+
+The `ash1` function computes the univariate average shifted histogram using one of several polynomial kernels---the biweight (commonly called bisquare) is the default. @DengWickham report that it is very fast for large datasets. This example shows the granular density estimate from the histogram. The default value for the `smooth` argument for the `as.Density` method for ash object is `TRUE`, which produces a smoother density curve.
+
+The code below illustrates the use of `ash1`, which requires binning by the function `bin1`. The output contains the `x` and `y` components, and indicator of any density error and tuning parameters. Therefore, the conversion function requires the data so that summary statistics can be computed and the data can be plotted. The density error is indicated in this example, so that the default ends of the density estimate are extended.
+
+```{r ash, echo=TRUE, eval=TRUE, fig.cap="The density plot from ash1."}
+library(Density)
+library(ash)
+DenSamp.ashD <- as.Density(ash1(bin1(DenSamp)), xin=DenSamp, smooth=FALSE)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.ashD)
+```
+
+Clearly, the density estimate is more variable than the previous estimates. It can be made smoother by increasing the `m` argument to `ash`, and that also generates a "ash estimate nonzero outside interval ab" message. Increasing the value to somewhere in the range of 8 to 10 produces a smoother density plot. (Not shown here.)
+
+## The gss Package
+
+The `ssden` function uses a penalized likelihood technique to select generalized smoothing splines for nonparametric density estimation. The user can then use the function `dssden` in the gss package to construct density estimates. The example below uses the `as.Density` function to create density estimates consistent with Density package.
+
+```{r gss, echo=TRUE, eval=TRUE, fig.cap="The density plot from ssden."}
+library(Density)
+library(gss)
+DenSamp.gssD <- as.Density(ssden(~DenSamp))
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.gssD)
+```
+
+The plot indicates a distinctive pattern of fitting splines---there are limits to extending the range of the distribution. In this case, the range is extended only by about 0.378 units of `DenSamp`---5 percent of the range. The area under the curve is very close to 1, which indicates that the range should be extended to better define the density curve. The shape also indicates that the `ssden` approach tends to produce density estimates with long tails.
+
+The default range of `ssden` can be extended with the `domain` argument to `ssden`. Given the truncated ends, in most cases, the range should be extended.
+
+## The KernSmooth Package
+
+The `bkde` function in KernSmooth computes a binned kernel density estimate. It returns only a list containing the density estimate, so the `as.Density` function expects the data to be supplied. The `bw.os` function in the Density package computes the oversmoothed bandwidth selector documented in the help pages for `bkde`. The bandwidth computed for these data is 0.6692.
+
+```{r KernSmooth, echo=TRUE, eval=TRUE, fig.cap="The density plot from bkde."}
+library(Density)
+library(KernSmooth)
+DenSamp.bkdeD <- as.Density(bkde(DenSamp), xin=DenSamp)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.bkdeD)
+```
+
+## The ks Package
+
+The ks package contains the function `kde` that will perform a kernel density estimate. It can handle up to six-dimensional data, but univariate data is of interest for this survey. The output is if class "kde", which is different from most other density objects in having different names for the density values. The name of the variable is not included in the output object, so is an option in the `as.Density` function.
+
+```{r ks, echo=TRUE, eval=TRUE, fig.cap="The density plot from kde."}
+library(Density)
+library(ks)
+DenSamp.kdeD <- as.Density(kde(DenSamp), xnam="DenSamp")
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.kdeD)
+```
+
+The `kde` plot is similar to other kernel density estimates. The bump on the left-hand side is more pronounced than that for `bkde`. The default bandwidth selector for `kde` is `hpi` in the ks package. The computed bandwidth is 0.5309.
+
+## The locfit Package
+
+The locfit package contains the function `density.lf` that will perform a local kernel density estimate. The output is a simple list of the x and y components of the density estimate. As such the input data are needed for statistical summaries by `as.Density`. The code below sets up the default locfit density estimate. The default computation for the bandwidth results in a density estimate that is far too variable, In general, multiplying the default bandwidth by 4 gives a result that is more similar to other kernel density estimates. The `bw.lf` function in the Density package can be used to compute that modified bandwidth. The plot is not shown here.
+
+```{r locfit, echo=TRUE, eval=TRUE, fig.cap="The density plot from locfit."}
+library(Density)
+library(locfit)
+DenSamp.lfD <- as.Density(density.lf(DenSamp, n=301), xin=DenSamp)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.lfD)
+```
+
+## The logspline Package
+
+The `logspline` function computes a density estimate using splines. Its output is an object of class "logspline" that has several support functions similar to those in the Density Package. The code below executes the `logspline` function and converts the output to class "Density." The output object does not preserve the input data, so the `as.Density` function accepts the `xin` argument so that complete statistics can be computed.
+
+```{r logspline, echo=TRUE, eval=TRUE, fig.cap="The density plot from logspline."}
+library(Density)
+library(logspline)
+DenSamp.lsD <- as.Density(logspline(DenSamp), xin=DenSamp, augment=FALSE)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.lsD)
+```
+
+The plot shows the same limited range of density distribution as other spline fits. But the range is larger, so there is less bias at the far ends of the distribution. The `as.Density` method for logspline can augment the density estimate by an amount so the the area under the curve is 1.
+
+## The np Package
+
+The `npudens` function computes a kernel density estimate. The are various methods for calling `npudens`, but the most straightforward is by a formula. It produces an object of class "npdensity." The `as.Density` function does not require any argument to construct a Density object of 301 points.
+
+```{r np, echo=TRUE, eval=TRUE, fig.cap="The density plot from npudens."}
+library(Density)
+library(np)
+DenSamp.npD <- as.Density(npudens(~ DenSamp))
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.npD)
+```
+
+The shape of the density estimate from `npudens` is very similar to that of `bkde`. The bandwidth computed by `npudensbw` is 0.6778, which is just slightly larger than the value for `bkde`.
+
+## The pendensity Package
+
+The `pendensity` function computes a penalized spline density estimate. It produces an object of class "pendensity." The `as.Density` function does not require any argument to construct a Density object of 301 points.
+
+```{r pendensity, echo=TRUE, eval=TRUE, fig.cap="The density plot from npudens."}
+library(Density)
+library(pendensity)
+DenSamp.penD <- as.Density(pendensity(DenSamp ~ 1), augment=FALSE)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.penD)
+```
+
+Again, the plot shows the characteristic limited range of the density estimate. In this case, the range is limited to the range of the training data. As with the logspline method, the `as.Density` method for pendensity can augment the density estimate.
+
+## The plugdensity Package
+
+The `plugin.density` function computes a kernel density estimate. It produces an object of class "densityEHpi" that inherits the class "density." The `as.Density` function requires the `xin` argument of the original data to compute the summary statistics.
+
+```{r plugdensity, echo=TRUE, eval=TRUE, fig.cap="The density plot from plugin.density."}
+library(Density)
+library(plugdensity)
+DenSamp.plugD <- as.Density(plugin.density(DenSamp, 301), xin=DenSamp)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.plugD)
+```
+
+The graph for `plugdensity` shows the greatest variability among the kernel density estimates. The `bw.EH` function is used by `plugdensity` to compute the bandwidth. The value for these data is 0.3894.
+
+## The sm Package
+
+The `sm.density` function computes density estimates for data with from 1 to 3 dimensions. It produces an object of class "density." It will also generate a plot unless display is set to "none." The `as.Density` function requires the `xin` argument of the original data to compute the summary statistics.
+
+```{r sm, echo=TRUE, eval=TRUE, fig.cap="The density plot from sm.density."}
+library(Density)
+library(sm)
+DenSamp.smD <- as.Density(sm.density(DenSamp, ngrid=301, display="none"), 
+                           xin=DenSamp)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.smD)
+```
+
+The plot for `sm.density` is similar to the other plots, not quite as smooth as `bkde`. The `hnorm` function in the sm package computes the default bandwidth. That values is 0.6196.
+
+## The stat Package
+
+The stat package is included with the standard R distribution. It has the `density` function that computes a kernel density estimate. It produces an object of class "density." It has several options for the choice of computing bandwidth. @VenablesRipley state the the default choice is not the best and recommend a wider bandwidth, specified by "nrd" rather than "nrd0." The `as.Density` function requires the `xin` argument of the original data to compute the summary statistics.
+
+```{r stat, echo=TRUE, eval=TRUE, fig.cap="The density plot from density."}
+library(Density)
+DenSamp.denD <- as.Density(density(DenSamp, n=301), xin=DenSamp)
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.denD)
+```
+
+The plot from `density` shows more variability than most others. The default bandwidth is computed by the `bw.nrd0` function. The value for these data is 0.4667, a bit larger than that for `plugdensity`. @VenablesRipley recommend using the `bw.nrd` function, which gives a slightly larger bandwidth.
+
+## Comments
+
+The are basically two types of density estimators: kernel and spline. Each has their own peculiarities and desirable characteristics. For this example, it appears that kernel density estimates are more sensitive to groups of data and individual values near the ends of the sample. This makes sense because a fixed bandwidth includes fewer points near the ends of the data because the data are more spread out at then ends.
+
+Several of the kernel density estimators use some kind of method to compute an estimate of the bandwidth. These include the functions `kde`, `npudens`, `plugin.density`, and `sm`. The tuning parameters from these functions can be used in `density` to produce a nearly identical estimate of density.
+
+The `gofScores` function can be used to compare the fits of various density estimates. The code below provides the comparisons for the kernel density estimates, including the double-smooth method in the Density package. The output shows that the model with the smallest Za value (closest fit) is the ash fit and has an enormous VarDen value. The next two values have similar  Za values but the first one has a much larger VarDen value. Of the next 3 models, kde and lf appear to have relatively larger VarDen values than interpolated between the ds and den models. The remaining models decrease at a fairly uniform rate. That presents the challenge to the user how to balance closeness of fit to variability of the fit, which is related to finding a balance of over- and under-fitting in model selection. That balance can also be moderated by the increasing variance ratio values for increasing Za values. There is a pattern if increasing Za and VarRat values and decreasing VarDen values with increasing bandwidth for those methods that report that value. 
+
+@VenablesRipley describe the VarDen-bandwidth pattern in Section 5.6 in their book. For kernel density estimators that use standard methods (excluding binning and double smoothing, for example) and the Gaussian kernel, the increase in variance is the bandwidth squared, which is the "noise" added to the data to compute the density estimate. The computation for Density objects requires that the reported variance be corrected to the maximum-likelihood value, multiplied by the number of observations -1 divided by the number of samples, and the result is very close, differing by a factor due to the integral of the density curve not being exactly equal to 1 and other computational factors. Note also that the bandwidth in the `density` function is scaled by the standard deviation of the different kernels, so that the computation holds.
+
+The following code computes the scores for the kernel density based estimators. It also creates a plot of the normalized Za and log likelihood scores. The plot includes a line indicating the general relation between those scores for kernel density estimates of the data. For this figure, the local density estimate is far to the left of the typical range, the double smooth estimate is below the line and the ash estimate is above the line.
+
+```{r gofKernel, echo=TRUE, eval=TRUE, fig.cap="Goodness of Fit Scores."}
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015)
+gofScores(DenSamp, DenSamp.dsD, DenSamp.ashD, DenSamp.bkdeD, DenSamp.kdeD,
+          DenSamp.lfD, DenSamp.npD, DenSamp.plugD, DenSamp.smD, DenSamp.denD,
+          plot.scores = TRUE)
+```
+
+Smoothing splines can also be analyzed using the `gofScores` function. The code is presented below, and includes the `qqDensity` output, which has a closer relation to spline estimates than kernel density estimates. For these spline fits, the VarDen value is more of a measure between peakedness and breadth of the density estimate. For spline fits, it makes more sense to compare how well the statistics of the fit match the statistics of the data. Those summary statistics are also reported by the VarRat column. For these methods, the only fit that is close to the sample variance is the `qqDensity` method.
+
+```{r gofSpline, echo=TRUE, eval=TRUE}
+gofScores(DenSamp, DenSamp.qqD, DenSamp.gssD, DenSamp.lsD, DenSamp.penD)
+```
+
+# Bootstrap Confidence Bands
+
+Confidence bands are the limits of the regions that contain a specified probability that the true value of the density of any given value is within those bands. The Density package has a function `bootDensity` that uses the bootstrap method to estimate confidence bands for selected methods. In all cases, the tuning parameters are preserved to the extent possible for any given method. This is in basic agreement with @Chen2017.
+
+The `bootDensity` function has support for the Density package functions `qqDensity` and `dsDensity`; the ash, gss, and logspline packages; local density estimation; and the `density` function. The Density functions `mixDensity` and `logDensity` do not have the ability to constrain the analysis so that the bootstrap bands are biased, which is also true of the `pendensity` function.
+
+There is no need to support other kernel density functions as `density` will give nearly identical results for any given bandwidth. Many packages provide the bandwidth estimators used by their density estimators. The np package has the `npundensbw` function. The KernSmooth package has the `dpik` function, which does not replicate what `bkde` uses, but the `bw.os` function in Density does. The ks package has the `hnm`, `hns`, `hpi` (equivalent to `dpik`), `hscv`, and `hucv` functions to compute bandwidths. The plugdensity package has the `bw.EH` function. The sm package has the `hcv`, `hsj`, `hnorm`, and `h.select` functions.
+
+The following code illustrates the use of the `bootDensity` function using the "qqDensity" method. The output object is of class "Density" and the normal `print` and `plot` functions work as expected. The `print` function includes the area within the confidence band. The `plot` function includes shaded confidence bands and a bold white line indicating the mean bootstrap density.
+
+```{r bootqq, echo=TRUE, eval=TRUE, fig.cap="The qqDensity confidence bands."}
+library(Density)
+set.seed(32)
+DenSamp.qqD <- bootDensity(DenSamp, "qqDensity", plot.fit=FALSE)
+DenSamp.qqD
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.qqD)
+```
+
+The code below illustrates how to set up for any bootstrap approach that is not specifically supported by `bootDensity`. It replicates the previous analysis.
+
+```{r bootDen, echo=TRUE, eval=TRUE, fig.cap="The bootDensity confidence bands."}
+library(Density)
+# Set up like the example for qqDensity
+DenSamp.qqB <- qqDensity(DenSamp, plot.fit=FALSE)
+# Get the from-to limit of x
+DenSamp.ft <- DenSamp.qqB$x[c(1,301)]
+# And the tuning parameter (only shape is needed)
+DenSamp.shape <- DenSamp.qqB$tuning[["shape"]]
+# Extract the bootstrap samples
+set.seed(32)
+DenSamp.samp <- bootDensity(DenSamp, "bootdata")
+# The default n is 301
+DenSamp.boot <- matrix(0, nrow=301, ncol=200)
+# Extract the y estimates, can be directly from the function
+for(i in seq(200))
+  DenSamp.boot[,i] <- qqDensity(DenSamp.samp[,i], shape=DenSamp.shape,
+                                from=DenSamp.ft[1], to=DenSamp.ft[2],
+                                plot.fit=FALSE)$y
+# Merge the data back into the original Density object
+DenSamp.qqB <- bootDensity(DenSamp.boot, "merge", Density=DenSamp.qqB)
+DenSamp.qqB
+par(mar=c(3.1,4.1,1,1), las=1, mgp=c(2,.1, 0), tck=.015, cex=0.8)
+plot(DenSamp.qqB)
+```
+
+# Conclusions
+
+@DengWickham concluded that the ash and KernSmooth functions ranked high in performance---both in speed and accuracy, computed by the mean absolute error between the density estimate and the true underlying distribution. The results of this simple overview, and other unreported analyses, suggests that the `bkde` function in KernSmooth oversmooths the data and gives large values of ZaNorm and lower log-likelihood values and the `ash1` function tends to overfit the data, giving artificially good measures of fit.
+
+The plot showing the Goodness of Fit Scores shows the general relation between the ZaNorm and log-likelihood scores. For all practical purposes, it does not matter which function is used---the only real difference is the bandwidth. Speed is a concern if the user must compute density estimates for thousands of datasets with thousands of points. In that case, the `density` function is about twice as slow as `bkde`.
+
+The plot showing the Goodness of Fit Scores does not show the increasing variance of the density estimate as the bandwidth increases. But that is clear from the report generated from `gofScores`. 
+
+Even though this overview portrayed results from a single data set, other unreported analyses suggests that the functions provided in the Density package generally performed well---having good ZaNorm and log-likelihood scores and generally had variance ratios that were close to 1.0. But the real purpose of the Density package is to compare various methods so that the users can select reasonable density estimates for their data.
+
+# Bibliography
+
